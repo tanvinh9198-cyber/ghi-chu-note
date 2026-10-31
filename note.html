@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#12141a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ghi chú">
+<meta name="description" content="App ghi chú cá nhân — có mẫu, tag, ghim, chạy offline.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<title>Ghi chú Note</title>
+<style>
+  :root{
+    --bg:#12141a; --panel:#181b23; --panel2:#20242f; --line:#2b3040;
+    --txt:#e8ebf2; --dim:#8b93a7; --acc:#5b8cff; --acc2:#28324e; --ok:#39d98a;
+    --note:#1d212b;
+  }
+  body[data-theme="light"]{
+    --bg:#f3f4f7; --panel:#ffffff; --panel2:#eef0f4; --line:#e0e3ea;
+    --txt:#1b1f27; --dim:#6b7280; --acc:#3b6fe0; --acc2:#e2eafc; --note:#ffffff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.55 "Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--txt);height:100vh;display:flex;flex-direction:column}
+
+  header{display:flex;align-items:center;gap:10px;padding:9px 14px;background:var(--panel);border-bottom:1px solid var(--line)}
+  header h1{font-size:15px;margin:0;font-weight:600;display:flex;gap:8px;align-items:center}
+  header .logo{background:linear-gradient(135deg,#ff9f43,#ff6b6b);padding:3px 9px;border-radius:8px;color:#fff}
+  .spacer{flex:1}
+  button{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:6px 11px;font-size:13px;cursor:pointer;transition:.15s}
+  button:hover{border-color:var(--acc);transform:translateY(-1px)}
+  button.primary{background:var(--acc);border-color:var(--acc);color:#fff}
+  button.icon{padding:6px 10px}
+  input,textarea{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:7px 10px;font-size:13px;outline:none;font-family:inherit}
+  input:focus,textarea:focus{border-color:var(--acc)}
+
+  main{flex:1;display:flex;min-height:0}
+
+  /* sidebar danh sách note */
+  aside{width:300px;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+  .asideTop{padding:10px;display:flex;flex-direction:column;gap:8px;border-bottom:1px solid var(--line)}
+  .asideTop input{width:100%}
+  .filters{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{font-size:12px;padding:3px 10px;border-radius:20px;background:var(--panel2);border:1px solid var(--line);color:var(--dim);cursor:pointer;user-select:none}
+  .chip.on{background:var(--acc2);border-color:var(--acc);color:var(--txt)}
+  #noteList{flex:1;overflow:auto;padding:8px}
+  .card{background:var(--note);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer;transition:.12s;border-left:4px solid transparent}
+  .card:hover{transform:translateY(-1px);border-color:var(--acc)}
+  .card.active{border-color:var(--acc);background:var(--acc2)}
+  .card .t{font-weight:600;margin-bottom:3px;display:flex;gap:6px;align-items:center}
+  .card .t span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .card .t .pin{flex:none}
+  .card .p{font-size:12px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .card .meta{font-size:11px;color:var(--dim);margin-top:5px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .tag{font-size:10px;background:var(--panel2);border:1px solid var(--line);padding:1px 7px;border-radius:10px;color:var(--dim)}
+  .dotc{width:9px;height:9px;border-radius:50%;flex:none}
+  .emptyList{color:var(--dim);text-align:center;padding:30px 12px}
+
+  /* editor */
+  section{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--bg)}
+  .edTop{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
+  #title{flex:1;font-size:17px;font-weight:600;background:none;border:1px solid transparent;padding:6px 8px}
+  #title:focus{background:var(--panel2)}
+  #body{flex:1;width:100%;border:none;border-radius:0;background:var(--note);padding:22px 28px;font-size:15px;line-height:1.7;resize:none;min-height:0;box-shadow:none}
+  #body:focus{box-shadow:none}
+  #preview{flex:1;overflow:auto;padding:22px 28px;background:var(--note);display:none}
+  #preview h1{font-size:1.7em;margin:.3em 0}
+  #preview h2{font-size:1.4em;margin:.3em 0}
+  #preview h3{font-size:1.15em;margin:.3em 0}
+  #preview code{background:var(--panel2);padding:1px 5px;border-radius:5px;font-family:Consolas,monospace;font-size:.9em}
+  #preview blockquote{border-left:3px solid var(--acc);margin:6px 0;padding:2px 12px;color:var(--dim)}
+  #preview ul{padding-left:22px}
+  #preview .done{text-decoration:line-through;color:var(--dim)}
+  .status{padding:6px 14px;font-size:12px;color:var(--dim);border-top:1px solid var(--line);background:var(--panel);display:flex;gap:14px;align-items:center}
+
+  /* color picker */
+  .palette{display:flex;gap:5px;padding:4px}
+  .palette i{width:22px;height:22px;border-radius:7px;cursor:pointer;border:1px solid var(--line)}
+  .palette i:hover{transform:scale(1.15)}
+  .menu{position:fixed;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:5px;z-index:99;box-shadow:0 8px 30px #0008;display:none;min-width:180px}
+  .menu button{display:block;width:100%;text-align:left;background:none;border:0;border-radius:7px;padding:7px 10px;color:var(--txt)}
+  .menu button:hover{background:var(--acc2)}
+  .toast{position:fixed;bottom:18px;right:18px;background:var(--panel);border:1px solid var(--acc);color:var(--txt);padding:10px 16px;border-radius:10px;box-shadow:0 8px 30px #0008;z-index:200;opacity:0;transform:translateY(10px);transition:.25s;pointer-events:none}
+  .toast.show{opacity:1;transform:translateY(0)}
+
+  .overlay{position:fixed;inset:0;background:#0008;backdrop-filter:blur(3px);z-index:150;display:flex;align-items:center;justify-content:center;padding:24px}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:14px;width:min(760px,100%);max-height:82vh;display:flex;flex-direction:column;box-shadow:0 20px 60px #000a}
+  .mHead{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line)}
+  .mHead b{font-size:15px}
+  .tplGrid{overflow:auto;padding:14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:10px}
+  .tplCard{background:var(--note);border:1px solid var(--line);border-radius:11px;padding:13px;cursor:pointer;transition:.14s;position:relative}
+  .tplCard:hover{transform:translateY(-2px);border-color:var(--acc);box-shadow:0 6px 18px #0005}
+  .tplCard .ic{font-size:22px;margin-bottom:6px}
+  .tplCard .nm{font-weight:600;margin-bottom:4px}
+  .tplCard .ds{font-size:11.5px;color:var(--dim);line-height:1.4}
+  .tplCard .del{position:absolute;top:6px;right:6px;font-size:11px;color:var(--dim);border:0;background:none;padding:2px 6px;opacity:0}
+  .tplCard:hover .del{opacity:1}
+  .tplCard .del:hover{color:var(--err,#ff6b6b)}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--acc)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span class="logo">📝</span> Ghi chú</h1>
+  <div class="spacer"></div>
+  <button id="btnTheme" class="icon">🌙</button>
+  <button id="btnExport">⬇ JSON</button>
+  <button id="btnImport">⬆ Nhập</button>
+  <input type="file" id="fileIn" accept=".json,.md,.txt" style="display:none">
+</header>
+
+<main>
+  <aside>
+    <div class="asideTop">
+      <input type="search" id="search" placeholder="🔎 Tìm tiêu đề, nội dung, #tag...">
+      <div class="filters" id="filters">
+        <span class="chip on" data-f="all">Tất cả</span>
+        <span class="chip" data-f="pin">📌 Đã ghim</span>
+        <span class="chip" data-f="trash">🗑 Thùng rác</span>
+      </div>
+    </div>
+    <div id="noteList"></div>
+  </aside>
+
+  <section>
+    <div class="edTop">
+      <input id="title" placeholder="Tiêu đề ghi chú...">
+      <button id="btnPin" title="Ghim/bỏ ghim">📌</button>
+      <button id="btnColor" title="Đổi màu ghi chú">🎨</button>
+      <button id="btnPreview" title="Xem trước Markdown (Ctrl+P)">👁 Xem</button>
+      <button id="btnDelete" class="icon" title="Xoá vào thùng rác">🗑</button>
+      <button id="btnTpl" title="Tạo note từ mẫu">🧩 Mẫu</button>
+      <button id="btnNew" class="primary">+ Ghi chú mới</button>
+    </div>
+    <textarea id="body" placeholder="Viết gì đó... Hỗ trợ **đậm**, *nghiêng*, # tiêu đề, - danh sách, - [ ] việc cần làm, > trích dẫn, `code`"></textarea>
+    <div id="preview"></div>
+    <div class="status" id="status"></div>
+  </section>
+</main>
+
+<div class="menu" id="ctx"></div>
+<div class="toast" id="toast"></div>
+
+<!-- modal mẫu -->
+<div class="overlay" id="ovTpl" style="display:none">
+  <div class="modal">
+    <div class="mHead">
+      <b>🧩 Chọn ghi chú mẫu</b>
+      <div class="spacer"></div>
+      <button id="btnSaveTpl" title="Lưu ghi chú hiện tại làm mẫu">💾 Lưu note này làm mẫu</button>
+      <button id="btnCloseTpl" class="icon">✕</button>
+    </div>
+    <div class="tplGrid" id="tplGrid"></div>
+  </div>
+</div>
+
+<script>
+const KEY='note_app_v1';
+const uid=()=>Math.random().toString(36).slice(2,9);
+const COLORS=['#ff6b6b','#ffa94d','#ffd43b','#69db7c','#38d9a9','#4dabf7','#748ffc','#b197fc','#f783ac','#868e96','transparent'];
+
+let db=load();
+let cur=null, filter='all', previewOn=false;
+
+function load(){
+  try{ const r=localStorage.getItem(KEY); if(r){ const d=JSON.parse(r); if(d&&d.notes) return d; } }catch(e){}
+  const n=note('Chào mừng 👋','Đây là app ghi chú của mày.\n\n- Click **+ Ghi chú mới** để tạo note\n- Ghim 📌 để đưa lên đầu\n- Đổi màu 🎨 cho từng note\n- Nhãn: gõ #tag trong nội dung\n- Viết xong tự lưu ngay trên máy\n\n## Markdown được hỗ trợ\n**đậm** · *nghiêng* · `code` · > trích dẫn\n- [ ] việc cần làm\n- [x] việc đã xong\n');
+  return {notes:[n], active:n.id, theme:'dark'};
+}
+function note(title,body){
+  return {id:uid(), title:title||'', body:body||'', color:'transparent', pinned:false, trashed:false, created:Date.now(), updated:Date.now()};
+}
+function save(){ localStorage.setItem(KEY, JSON.stringify(db)); }
+function active(){ return db.notes.find(n=>n.id===db.active); }
+function now(){ return Date.now(); }
+
+/* ---------- time ---------- */
+function fmt(t){
+  const d=new Date(t), n=new Date();
+  const hm=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+  if(d.toDateString()===n.toDateString()) return 'hôm nay '+hm;
+  const y=new Date(n); y.setDate(n.getDate()-1);
+  if(d.toDateString()===y.toDateString()) return 'hôm qua '+hm;
+  return d.toLocaleDateString('vi-VN')+' '+hm;
+}
+
+/* ---------- tags ---------- */
+function tagsOf(n){
+  const m=(n.body||'').match(/#[\p{L}\p{N}_]+/gu)||[];
+  return [...new Set(m.map(x=>x.slice(1)))].slice(0,6);
+}
+function previewText(n){
+  return (n.body||'').replace(/[#*>`\-\[\]]/g,'').replace(/\s+/g,' ').trim() || '(trống)';
+}
+
+/* ---------- list ---------- */
+function renderList(){
+  const box=document.getElementById('noteList');
+  box.innerHTML='';
+  const q=(document.getElementById('search').value||'').toLowerCase();
+  const tags=(q.match(/#([\p{L}\p{N}_]+)/gu)||[]).map(x=>x.slice(1).toLowerCase());
+  const words=q.replace(/#[\p{L}\p{N}_]+/gu,'').trim();
+
+  let list=db.notes.filter(n=>{
+    if(filter==='trash') return n.trashed;
+    if(n.trashed) return false;
+    if(filter==='pin') return n.pinned;
+    return true;
+  });
+  if(tags.length||words){
+    list=list.filter(n=>{
+      const hay=(n.title+'\n'+n.body).toLowerCase();
+      const ntags=tagsOf(n).map(t=>t.toLowerCase());
+      return tags.every(t=>ntags.includes(t)) && (!words||hay.includes(words));
+    });
+  }
+  list.sort((a,b)=> (b.pinned-a.pinned) || (b.updated-a.updated));
+
+  document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on', c.dataset.f===filter));
+
+  if(!list.length){
+    box.innerHTML='<div class="emptyList">Không có ghi chú nào 🕊<br><br>+ Ghi chú mới để bắt đầu</div>';
+    return;
+  }
+  list.forEach(n=>{
+    const d=document.createElement('div');
+    d.className='card'+(n.id===db.active?' active':'');
+    d.style.borderLeftColor = n.color==='transparent' ? 'var(--acc)' : n.color;
+    const tg=tagsOf(n);
+    d.innerHTML=`<div class="t">${n.pinned?'<span class="pin">📌</span>':''}<span></span></div>
+      <div class="p"></div>
+      <div class="meta"><i class="dotc"></i><span class="when"></span>${tg.map(t=>'<span class="tag">#'+t+'</span>').join('')}</div>`;
+    d.querySelector('.t span:last-child').textContent=n.title||'(không tiêu đề)';
+    d.querySelector('.p').textContent=previewText(n);
+    d.querySelector('.when').textContent=fmt(n.updated);
+    d.querySelector('.dotc').style.background = n.color==='transparent'?'var(--line)':n.color;
+    d.onclick=()=>{ db.active=n.id; save(); renderAll(); };
+    box.appendChild(d);
+  });
+}
+
+/* ---------- editor ---------- */
+function renderEditor(){
+  const n=active();
+  const t=document.getElementById('title'), b=document.getElementById('body');
+  if(!n){ t.value=''; b.value=''; t.disabled=b.disabled=true; return; }
+  t.disabled=b.disabled=false;
+  if(document.activeElement!==t) t.value=n.title;
+  if(document.activeElement!==b) b.value=n.body;
+  document.getElementById('btnPin').style.color = n.pinned?'var(--acc)':'';
+  renderPreview();
+}
+function renderPreview(){
+  const n=active(); if(!n) return;
+  document.getElementById('preview').innerHTML = md(n.body||'');
+}
+
+/* ---------- markdown-lite ---------- */
+function esc(s){ return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function inline(s){
+  return s
+    .replace(/`([^`]+)`/g,'<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>')
+    .replace(/(^|[^*])\*([^*]+)\*/g,'$1<i>$2</i>')
+    .replace(/#([\p{L}\p{N}_]+)/gu,'<span class="tag" style="color:var(--acc)">#$1</span>');
+}
+function md(src){
+  const out=[]; let inUl=false, inBq=false;
+  const close=()=>{ if(inUl){out.push('</ul>');inUl=false;} if(inBq){out.push('</blockquote>');inBq=false;} };
+  esc(src).split(/\r?\n/).forEach(line=>{
+    const t=line.trim();
+    if(/^###\s/.test(t)){ close(); out.push('<h3>'+inline(t.slice(4))+'</h3>'); }
+    else if(/^##\s/.test(t)){ close(); out.push('<h2>'+inline(t.slice(3))+'</h2>'); }
+    else if(/^#\s/.test(t)){ close(); out.push('<h1>'+inline(t.slice(2))+'</h1>'); }
+    else if(/^>\s?/.test(t)){ if(!inBq){close();out.push('<blockquote>');inBq=true;} out.push(inline(t.replace(/^>\s?/,''))+'<br>'); }
+    else if(/^-\s*\[[xX]\]\s*/.test(t)){ if(!inUl){close();out.push('<ul>');inUl=true;} out.push('<li class="done">'+inline(t.replace(/^-\s*\[[xX]\]\s*/,''))+'</li>'); }
+    else if(/^-\s*\[\s\]\s*/.test(t)){ if(!inUl){close();out.push('<ul>');inUl=true;} out.push('<li>☐ '+inline(t.replace(/^-\s*\[\s\]\s*/,''))+'</li>'); }
+    else if(/^[-*]\s+/.test(t)){ if(!inUl){close();out.push('<ul>');inUl=true;} out.push('<li>'+inline(t.replace(/^[-*]\s+/,''))+'</li>'); }
+    else if(t===''){ close(); out.push('<div style="height:8px"></div>'); }
+    else { close(); out.push('<p style="margin:4px 0">'+inline(t)+'</p>'); }
+  });
+  close();
+  return out.join('');
+}
+
+function renderStatus(){
+  const n=active();
+  const st=document.getElementById('status');
+  if(!n){ st.textContent='Chưa có ghi chú'; return; }
+  const words=(n.body||'').trim().split(/\s+/).filter(Boolean).length;
+  const lines=(n.body||'').split('\n').length;
+  st.innerHTML=`<span>📝 ${words} từ · ${lines} dòng</span><span>Tạo ${fmt(n.created)}</span><span>Sửa ${fmt(n.updated)}</span>
+    <span style="flex:1"></span><span style="color:var(--ok)">● Tự lưu</span>`;
+}
+
+function renderAll(){ renderList(); renderEditor(); renderStatus(); }
+
+/* ---------- editing ---------- */
+let t1;
+function touch(){
+  const n=active(); if(!n) return;
+  n.updated=now();
+  clearTimeout(t1);
+  t1=setTimeout(()=>{ save(); renderList(); renderStatus(); },350);
+}
+document.getElementById('title').addEventListener('input', e=>{
+  const n=active(); if(!n) return;
+  n.title=e.target.value; touch(); renderPreview();
+});
+document.getElementById('body').addEventListener('input', e=>{
+  const n=active(); if(!n) return;
+  n.body=e.target.value; touch(); renderPreview();
+});
+document.getElementById('body').addEventListener('keydown', e=>{
+  if(e.key==='Tab'){
+    e.preventDefault();
+    const el=e.target, s=el.selectionStart, en=el.selectionEnd;
+    el.value=el.value.slice(0,s)+'  '+el.value.slice(en);
+    el.selectionStart=el.selectionEnd=s+2;
+    el.dispatchEvent(new Event('input'));
+  }
+});
+
+/* ---------- actions ---------- */
+document.getElementById('btnNew').onclick=()=>{
+  if(db.notes.find(x=>x.trashed===false && !x.title && !x.body)){ toast('Note trống đang chờ 😅'); return; }
+  const n=note('','');
+  db.notes.push(n); db.active=n.id; filter='all'; save(); renderAll();
+  document.getElementById('title').focus();
+};
+document.getElementById('btnPin').onclick=()=>{
+  const n=active(); if(!n) return;
+  n.pinned=!n.pinned; n.updated=now(); save(); renderAll();
+  toast(n.pinned?'📌 Đã ghim':'Bỏ ghim');
+};
+document.getElementById('btnDelete').onclick=()=>{
+  const n=active(); if(!n) return;
+  if(n.trashed){
+    if(!confirm('Xoá vĩnh viễn "'+(n.title||'không tiêu đề')+'" ?')) return;
+    db.notes=db.notes.filter(x=>x.id!==n.id);
+    db.active=(db.notes.find(x=>!x.trashed)||{}).id||null;
+    toast('🗑 Đã xoá vĩnh viễn');
+  } else {
+    n.trashed=true;
+    db.active=(db.notes.find(x=>!x.trashed)||{}).id||null;
+    toast('Đã chuyển vào thùng rác');
+  }
+  save(); renderAll();
+};
+document.getElementById('btnPreview').onclick=()=>togglePreview();
+function togglePreview(){
+  previewOn=!previewOn;
+  document.getElementById('body').style.display=previewOn?'none':'';
+  document.getElementById('preview').style.display=previewOn?'block':'none';
+  document.getElementById('btnPreview').style.color=previewOn?'var(--acc)':'';
+  if(previewOn) renderPreview();
+}
+
+/* color menu */
+const ctx=document.getElementById('ctx');
+document.getElementById('btnColor').onclick=e=>{
+  e.stopPropagation();
+  const n=active(); if(!n) return;
+  ctx.innerHTML='';
+  const p=document.createElement('div'); p.className='palette';
+  COLORS.forEach(hex=>{
+    const i=document.createElement('i');
+    i.style.background = hex==='transparent' ? 'linear-gradient(135deg,var(--panel2) 50%,var(--line) 50%)' : hex;
+    i.title='Màu';
+    i.onclick=()=>{ n.color=hex; n.updated=now(); ctx.style.display='none'; save(); renderAll(); };
+    p.appendChild(i);
+  });
+  ctx.appendChild(p);
+  ctx.style.display='block';
+  const r=e.target.getBoundingClientRect();
+  ctx.style.left=Math.min(r.left, innerWidth-260)+'px';
+  ctx.style.top=(r.bottom+6)+'px';
+};
+document.addEventListener('click', e=>{ if(!ctx.contains(e.target)) ctx.style.display='none'; });
+
+/* filters + search */
+document.getElementById('filters').onclick=e=>{
+  const c=e.target.closest('.chip'); if(!c) return;
+  filter=c.dataset.f; renderList();
+};
+document.getElementById('search').addEventListener('input', renderList);
+
+/* theme */
+function applyTheme(){
+  document.body.dataset.theme=db.theme||'dark';
+  document.getElementById('btnTheme').textContent = db.theme==='light'?'☀️':'🌙';
+}
+document.getElementById('btnTheme').onclick=()=>{ db.theme=(db.theme==='light')?'dark':'light'; save(); applyTheme(); };
+applyTheme();
+
+/* import/export */
+function download(name,text,type){
+  const b=new Blob([text],{type});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+document.getElementById('btnExport').onclick=()=>{
+  download('ghichu-note-backup.json', JSON.stringify(db,null,2),'application/json');
+  toast('⬇ Đã tải backup');
+};
+document.getElementById('btnImport').onclick=()=>document.getElementById('fileIn').click();
+document.getElementById('fileIn').onchange=e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=()=>{
+    try{
+      const txt=rd.result;
+      if(f.name.endsWith('.json')){
+        const d=JSON.parse(txt);
+        if(d.notes){ d.notes.forEach(x=>{x.id=uid(); db.notes.push(x);}); db.active=d.notes[d.notes.length-1].id; }
+      } else {
+        const n=note(f.name.replace(/\.(md|txt)$/i,''), txt);
+        db.notes.push(n); db.active=n.id;
+      }
+      save(); renderAll(); toast('⬆ Đã nhập file');
+    }catch(err){ alert('Không đọc được: '+err.message); }
+  };
+  rd.readAsText(f,'utf-8'); e.target.value='';
+};
+
+/* shortcuts */
+document.addEventListener('keydown', e=>{
+  const ctrl=e.ctrlKey||e.metaKey;
+  if(ctrl && e.key.toLowerCase()==='n'){ e.preventDefault(); document.getElementById('btnNew').click(); }
+  else if(ctrl && e.key.toLowerCase()==='p'){ e.preventDefault(); togglePreview(); }
+  else if(ctrl && e.key.toLowerCase()==='s'){ e.preventDefault(); save(); toast('💾 Đã lưu'); }
+  else if(ctrl && e.key.toLowerCase()==='b'){
+    const el=document.getElementById('body');
+    if(document.activeElement===el && el.selectionStart!==el.selectionEnd){
+      e.preventDefault();
+      const s=el.selectionStart,en=el.selectionEnd;
+      el.value=el.value.slice(0,s)+'**'+el.value.slice(s,en)+'**'+el.value.slice(en);
+      el.selectionStart=s+2; el.selectionEnd=en+2;
+      el.dispatchEvent(new Event('input'));
+    }
+  }
+});
+
+/* ---------- templates ---------- */
+const TPL_BUILTIN = [
+  {ic:'✅', nm:'Việc cần làm', ds:'Danh sách công việc trong ngày', title:'Việc cần làm - ' + new Date().toLocaleDateString('vi-VN'),
+   body:'# Việc cần làm\n\n## Ưu tiên cao\n- [ ] \n- [ ] \n\n## Bình thường\n- [ ] \n- [ ] \n\n## Đã xong\n- [x] \n'},
+  {ic:'📋', nm:'Ghi chú họp', ds:'Mục tiêu, thảo luận, việc cần làm', title:'Biên bản họp - ',
+   body:'# Biên bản họp\n\n**Thời gian:** \n**Địa điểm:** \n**Tham gia:** \n\n## Nội dung thảo luận\n- \n\n## Quyết định\n- \n\n## Việc cần làm\n- [ ] @ai — việc gì — hạn: \n'},
+  {ic:'🌞', nm:'Nhật ký ngày', ds:'Ghi lại cảm xúc, việc đã làm', title:'Nhật ký - ' + new Date().toLocaleDateString('vi-VN'),
+   body:'# Nhật ký ngày\n\n**Hôm nay tôi:** \n\n## Ba điều biết ơn\n1. \n2. \n3. \n\n## Cảm xúc hôm nay\n⭐⭐⭐\n\n## Bài học\n> \n'},
+  {ic:'🛒', nm:'Danh sách mua sắm', ds:'Nhóm hàng + dự tính chi phí', title:'Đi mua sắm - ',
+   body:'# Danh sách mua sắm\n\n## Đồ ăn\n- [ ] \n\n## Đồ dùng\n- [ ] \n\n## Ước tính\n| Hàng | Giá |\n- Tổng: \n'},
+  {ic:'📅', nm:'Kế hoạch tuần', ds:'7 ngày, mục tiêu tuần', title:'Kế hoạch tuần ' + new Date().toLocaleDateString('vi-VN'),
+   body:'# Kế hoạch tuần\n\n## Mục tiêu tuần này\n1. \n2. \n3. \n\n## Thứ 2\n- [ ] \n## Thứ 3\n- [ ] \n## Thứ 4\n- [ ] \n## Thứ 5\n- [ ] \n## Thứ 6\n- [ ] \n## Thứ 7\n- [ ] \n## Chủ nhật\n- [ ] \n'},
+  {ic:'💰', nm:'Chi tiêu', ds:'Theo dõi thu chi trong tháng', title:'Chi tiêu tháng ' + new Date().getMonth()+1 + '/' + new Date().getFullYear(),
+   body:'# Chi tiêu tháng\n\n## Thu nhập\n- Lương: \n- Khác: \n\n## Chi phí\n- Ăn uống: \n- Xăng xe: \n- Nhà ở: \n- Giải trí: \n\n## Còn lại\n= \n'},
+  {ic:'📚', nm:'Sách / Podcast', ds:'Đánh giá sau khi đọc/nghe', title:'Đọc xem: ',
+   body:'# \n\n**Tác giả:** \n**Đánh giá:** ⭐⭐⭐⭐☆\n\n## Tóm tắt\n> \n\n## Đoạn hay\n- \n\n## Áp dụng vào cuộc sống\n- [ ] \n'},
+  {ic:'🍳', nm:'Công thức nấu ăn', ds:'Nguyên liệu + các bước', title:'Công thức: ',
+   body:'# \n\n**Khẩu phần:** \n**Thời gian:** \n\n## Nguyên liệu\n- \n\n## Các bước\n1. \n2. \n3. \n\n## Mẹo\n> \n'},
+  {ic:'✈️', nm:'Chuẩn bị đi chơi', ds:'Gói đồ + giấy tờ + lịch trình', title:'Chuẩn bị đi chơi - ',
+   body:'# Chuẩn bị đi chơi\n\n## Lịch trình\n- Ngày 1: \n- Ngày 2: \n\n## Giấy tờ\n- [ ] CMND/Passport\n- [ ] Vé máy bay / xe\n- [ ] Đặt khách sạn\n\n## Đồ đạc\n- [ ] Sạc dự phòng\n- [ ] Quần áo\n- [ ] Thuốc cá nhân\n\n## Ngân sách\n= \n'},
+  {ic:'💡', nm:'Ý tưởng (Brainstorm)', ds:'Bắt ý tưởng nhanh, không cần suy nghĩ', title:'Ý tưởng: ',
+   body:'# Ý tưởng: \n\n## Bắt đầu từ vấn đề\n> \n\n## Ý tưởng (không phán xét)\n1. \n2. \n3. \n4. \n\n## Hấp dẫn nhất\n- \n\n## Bước tiếp theo\n- [ ] \n'},
+  {ic:'💪', nm:'Theo dõi thói quen', ds:'Checklist hằng ngày', title:'Thói quen - tuần này',
+   body:'# Thói quen tuần này\n\n| Thói quen | T2 | T3 | T4 | T5 | T6 | T7 | CN |\n- 💧 Uống 2l nước\n- 🏃 Tập thể dục\n- 📖 Đọc 30 phút\n- 😴 Ngủ trước 23h\n- 📵 Không điện thoại 1h\n'},
+  {ic:'🏥', nm:'Sức khỏe', ds:'Triệu chứng, thuốc, lịch khám', title:'Sức khỏe - ',
+   body:'# Sức khỏe\n\n## Triệu chứng\n> \n\n## Thuốc đang dùng\n- \n\n## Lịch khám\n- \n\n## Ghi chú\n> \n'},
+];
+
+function allTemplates(){
+  const custom = (db.templates||[]).map(t=>({...t, custom:true}));
+  return [...TPL_BUILTIN, ...custom];
+}
+function openTpl(){
+  const g=document.getElementById('tplGrid');
+  g.innerHTML='';
+  allTemplates().forEach((t,i)=>{
+    const d=document.createElement('div');
+    d.className='tplCard';
+    d.innerHTML=`<div class="ic"></div><div class="nm"></div><div class="ds"></div>
+      ${t.custom?'<button class="del" title="Xoá mẫu">✕</button>':''}`;
+    d.querySelector('.ic').textContent=t.ic||'📄';
+    d.querySelector('.nm').textContent=t.nm;
+    d.querySelector('.ds').textContent=t.ds||'';
+    d.onclick=e=>{
+      if(e.target.classList.contains('del')){
+        e.stopPropagation();
+        if(!confirm('Xoá mẫu "'+t.nm+'"?')) return;
+        db.templates.splice(db.templates.indexOf(t),1); save(); openTpl();
+        return;
+      }
+      const n=note(t.title, t.body);
+      db.notes.push(n); db.active=n.id; filter='all'; save();
+      document.getElementById('ovTpl').style.display='none';
+      renderAll();
+      toast((t.custom?'📄':'🧩')+' Đã tạo từ mẫu: '+t.nm);
+    };
+    g.appendChild(d);
+  });
+  document.getElementById('ovTpl').style.display='flex';
+}
+document.getElementById('btnTpl').onclick=openTpl;
+document.getElementById('btnCloseTpl').onclick=()=>document.getElementById('ovTpl').style.display='none';
+document.getElementById('ovTpl').addEventListener('click', e=>{
+  if(e.target.id==='ovTpl') e.currentTarget.style.display='none';
+});
+document.getElementById('btnSaveTpl').onclick=()=>{
+  const n=active();
+  if(!n || (!n.title && !n.body)) return toast('Viết gì vào note trước đã 🙂');
+  db.templates=db.templates||[];
+  db.templates.push({ic:'⭐', nm:n.title||'Mẫu của tui', ds:'Lưu từ note ngày '+fmt(now()), title:n.title, body:n.body});
+  save(); openTpl(); toast('💾 Đã lưu làm mẫu');
+};
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') document.getElementById('ovTpl').style.display='none'; });
+
+if(!db.active || !db.notes.find(n=>n.id===db.active)) db.active=(db.notes[0]||{}).id||null;
+renderAll();
+
+/* ---------- PWA: service worker + nút cài app ---------- */
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js')
+      .then(()=>console.log('SW: offline sẵn sàng'))
+      .catch(err=>console.warn('SW không chạy (cần HTTP/HTTPS, không chạy trên file://):', err.message));
+  });
+}
+
+let deferredPrompt = null;
+const btnInstall = document.createElement('button');
+btnInstall.id='btnInstall'; btnInstall.textContent='📲 Cài app'; btnInstall.className='icon';
+btnInstall.style.display='none';
+btnInstall.title='Thêm app vào màn hình chính';
+document.querySelector('header').insertBefore(btnInstall, document.getElementById('btnTheme'));
+
+window.addEventListener('beforeinstallprompt', e=>{
+  e.preventDefault();
+  deferredPrompt = e;
+  btnInstall.style.display='';
+});
+btnInstall.onclick = async ()=>{
+  if(!deferredPrompt){ toast('iOS: bấm nút Chia sẻ → "Thêm vào màn hình chính"'); return; }
+  deferredPrompt.prompt();
+  const {outcome} = await deferredPrompt.userChoice;
+  toast(outcome==='accepted' ? '🎉 Đang cài app...' : 'Đã huỷ cài');
+  deferredPrompt = null;
+  btnInstall.style.display='none';
+};
+window.addEventListener('appinstalled', ()=>{ toast('✅ App đã lên màn hình chính!'); btnInstall.style.display='none'; });
+
+/* Hiện nút trên iOS (không có beforeinstallprompt) — bấm sẽ hướng dẫn thêm tay */
+if(!deferredPrompt){
+  setTimeout(()=>{
+    const ua = navigator.userAgent;
+    if(/iPhone|iPad|iPod/i.test(ua)) btnInstall.style.display='';
+  }, 1200);
+}
+</script>
+</body>
+</html>

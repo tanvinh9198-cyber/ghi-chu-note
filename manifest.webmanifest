@@ -1,0 +1,19 @@
+{
+  "name": "Ghi chú Note",
+  "short_name": "Ghi chú",
+  "description": "App ghi chú cá nhân — có mẫu, tag, ghim, lưu ngay trên máy, chạy offline.",
+  "start_url": "./note.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#12141a",
+  "theme_color": "#12141a",
+  "lang": "vi",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }
+  ]
+}
