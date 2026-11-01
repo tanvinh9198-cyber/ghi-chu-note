@@ -99,6 +99,21 @@
   .tplCard .del{position:absolute;top:6px;right:6px;font-size:11px;color:var(--dim);border:0;background:none;padding:2px 6px;opacity:0}
   .tplCard:hover .del{opacity:1}
   .tplCard .del:hover{color:var(--err,#ff6b6b)}
+
+  .syncBody{padding:14px 16px;overflow:auto;display:flex;flex-direction:column;gap:12px}
+  .syncBody label{font-size:12px;color:var(--dim);display:block;margin-bottom:4px}
+  .syncBody input[type=text]{width:100%;font-family:Consolas,monospace;font-size:12.5px}
+  .syncRow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .gStatus{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13px;line-height:1.5}
+  .gStatus b{color:var(--ok)}
+  .gStatus.warn{border-color:#ffa94d}
+  .gStatus.err{border-color:var(--err,#ff6b6b)}
+  .step{font-size:12px;color:var(--dim);line-height:1.65}
+  .step b{color:var(--txt)}
+  .code{font-family:Consolas,monospace;background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:1px 5px;font-size:11.5px;color:var(--txt);user-select:all}
+  a.link{color:var(--acc);text-decoration:underline}
+  .gdot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--dim);margin-right:5px}
+  .gdot.on{background:var(--ok);box-shadow:0 0 6px var(--ok)}
   ::-webkit-scrollbar{width:10px;height:10px}
   ::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px}
   ::-webkit-scrollbar-thumb:hover{background:var(--acc)}
@@ -109,6 +124,7 @@
 <header>
   <h1><span class="logo">📝</span> Ghi chú</h1>
   <div class="spacer"></div>
+  <button id="btnSync" class="icon" title="Đồng bộ Google Drive">☁️ Đồng bộ</button>
   <button id="btnTheme" class="icon">🌙</button>
   <button id="btnExport">⬇ JSON</button>
   <button id="btnImport">⬆ Nhập</button>
@@ -160,6 +176,49 @@
   </div>
 </div>
 
+<!-- modal đồng bộ Google -->
+<div class="overlay" id="ovSync" style="display:none">
+  <div class="modal" style="max-width:520px">
+    <div class="mHead">
+      <b>☁️ Đồng bộ Google Drive</b>
+      <div class="spacer"></div>
+      <button id="btnCloseSync" class="icon">✕</button>
+    </div>
+    <div class="syncBody">
+      <div class="gStatus" id="gStatus">Đang kiểm tra...</div>
+
+      <div id="gSetup">
+        <div class="step">
+          <b>1.</b> Vào <a class="link" target="_blank" href="https://console.cloud.google.com/apis/credentials">console.cloud.google.com/apis/credentials</a> → chọn project (tạo mới nếu chưa có).<br>
+          <b>2.</b> Bấm <b>+ CREATE CREDENTIALS → OAuth client ID</b>. Nếu được hỏi, bấm <b>Configure consent screen</b> → chọn <b>External</b> → điền tên app → lưu → quay lại.<br>
+          <b>3.</b> Ứng dụng chọn <b>Web application</b>. Ở <b>Authorized JavaScript origins</b> bấm <b>+ ADD ORIGIN</b> và dán đúng 2 dòng:<br>
+          <span class="code">https://tanvinh9198-cyber.github.io</span><br>
+          <span class="code">https://tanvinh9198-cyber.github.io/ghi-chu-note</span><br>
+          <b>4.</b> Bấm CREATE → copy đoạn <b>Client ID</b> dạng <span class="code">xxxx.apps.googleusercontent.com</span> dán xuống ô dưới.<br>
+          <b>5.</b> Vào <a class="link" target="_blank" href="https://console.cloud.google.com/apis/credentials/consent">trang consent screen</a> → mục <b>Audience</b> → phần <b>Test users</b> → bấm <b>+ ADD USERS</b> → thêm <b>email Google của mày</b> (bắt buộc, nếu không sẽ báo "access blocked").
+        </div>
+        <div style="margin-top:10px">
+          <label>Client ID:</label>
+          <input type="text" id="gClientId" placeholder="xxxx.apps.googleusercontent.com">
+        </div>
+      </div>
+
+      <div class="syncRow">
+        <button id="btnGSignIn" class="primary">🔑 Đăng nhập Google</button>
+        <button id="btnGSyncNow" style="display:none">🔄 Đồng bộ ngay</button>
+        <button id="btnGPull" style="display:none">⬇ Tải từ Drive</button>
+        <button id="btnGSignOut" class="danger" style="display:none">Đăng xuất</button>
+      </div>
+      <label class="syncRow" style="font-size:13px;cursor:pointer">
+        <input type="checkbox" id="gAuto" checked> Tự đồng bộ khi ghi chú (khuyên dùng)
+      </label>
+      <div class="step" style="opacity:.8">
+        Note được lưu trong <b>appDataFolder</b> của Drive — một thư mục ẩn, <b>chỉ app này thấy được</b>, không xuất hiện trong Drive của mày và không ai khác đọc được. Nội dung note không gửi đi đâu ngoài Google Drive.
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 const KEY='note_app_v1';
 const uid=()=>Math.random().toString(36).slice(2,9);
@@ -169,9 +228,9 @@ let db=load();
 let cur=null, filter='all', previewOn=false;
 
 function load(){
-  try{ const r=localStorage.getItem(KEY); if(r){ const d=JSON.parse(r); if(d&&d.notes) return d; } }catch(e){}
+  try{ const r=localStorage.getItem(KEY); if(r){ const d=JSON.parse(r); if(d&&d.notes){ d.sheets=undefined; if(!d.templates) d.templates=[]; return d; } } }catch(e){}
   const n=note('Chào mừng 👋','Đây là app ghi chú của mày.\n\n- Click **+ Ghi chú mới** để tạo note\n- Ghim 📌 để đưa lên đầu\n- Đổi màu 🎨 cho từng note\n- Nhãn: gõ #tag trong nội dung\n- Viết xong tự lưu ngay trên máy\n\n## Markdown được hỗ trợ\n**đậm** · *nghiêng* · `code` · > trích dẫn\n- [ ] việc cần làm\n- [x] việc đã xong\n');
-  return {notes:[n], active:n.id, theme:'dark'};
+  return {notes:[n], active:n.id, theme:'dark', templates:[]};
 }
 function note(title,body){
   return {id:uid(), title:title||'', body:body||'', color:'transparent', pinned:false, trashed:false, created:Date.now(), updated:Date.now()};
@@ -562,6 +621,229 @@ if(!deferredPrompt){
     if(/iPhone|iPad|iPod/i.test(ua)) btnInstall.style.display='';
   }, 1200);
 }
+
+/* ================= ĐỒNG BỘ GOOGLE DRIVE =================
+   Lưu trong appDataFolder của Drive — thư mục ẩn, chỉ app này thấy. */
+const GKEY='ghichu_sync_cfg', GFILE='ghichu-note-data.json',
+      GSCOPE='https://www.googleapis.com/auth/drive.appdata';
+let gToken=null, gExp=0, tokenClient=null, pendingRes=null, pendingRej=null, gBusy=false, syncTimer=null;
+
+function gcfg(){ try{ return JSON.parse(localStorage.getItem(GKEY))||{}; }catch(e){ return {}; } }
+function gsaveCfg(o){ localStorage.setItem(GKEY, JSON.stringify(o)); }
+function gcid(){ return gcfg().cid||''; }
+function gsigned(){ return !!gToken && Date.now()<gExp; }
+
+function loadGis(cb){
+  if(window.google && google.accounts && google.accounts.oauth2) return cb();
+  if(document.getElementById('gis-js')){
+    const iv=setInterval(()=>{ if(window.google&&google.accounts){clearInterval(iv);cb();} },120);
+    return;
+  }
+  const s=document.createElement('script');
+  s.id='gis-js'; s.src='https://accounts.google.com/gsi/client'; s.async=true; s.defer=true;
+  s.onload=cb;
+  s.onerror=()=>setGStatus('Không tải được Google SDK. Kiểm tra kết nối mạng.','err');
+  document.head.appendChild(s);
+}
+function initTokenClient(){
+  if(tokenClient || !gcid() || !window.google) return;
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: gcid(), scope: GSCOPE,
+    callback: r=>{
+      if(r.error){ setGStatus('Đăng nhập lỗi: '+r.error,'err'); pendingRej && pendingRej(new Error(r.error)); }
+      else { gToken=r.access_token; gExp=Date.now()+(r.expires_in||3600)*1000; pendingRes && pendingRes(gToken); }
+      pendingRes=pendingRej=null;
+    },
+    error_callback: e=>{ setGStatus('Bị huỷ hoặc bị chặn: '+(e.type||'lỗi'),'err'); pendingRej && pendingRej(new Error('cancelled')); pendingRes=pendingRej=null; }
+  });
+}
+function getToken(mode){
+  return new Promise((res,rej)=>{
+    if(gsigned()) return res(gToken);
+    loadGis(()=>{
+      initTokenClient();
+      if(!tokenClient) return rej(new Error('Chưa có Client ID'));
+      pendingRes=res; pendingRej=rej;
+      tokenClient.requestAccessToken({prompt: mode||''});
+    });
+  });
+}
+async function gcall(url, opts){
+  const t = await getToken('');
+  opts = opts||{}; opts.headers = Object.assign({'Authorization':'Bearer '+t}, opts.headers||{});
+  const r = await fetch(url, opts);
+  if(r.status===401){ gToken=null; const t2=await getToken(''); opts.headers.Authorization='Bearer '+t2; return fetch(url,opts); }
+  return r;
+}
+async function gFindFile(){
+  const q = encodeURIComponent("name='"+GFILE+"' and spaces='appDataFolder' and trashed=false");
+  const r = await gcall('https://www.googleapis.com/drive/v3/files?q='+q+'&fields=files(id,name,modifiedTime)');
+  if(!r.ok) throw new Error('Tìm file lỗi '+r.status);
+  const j = await r.json();
+  return (j.files||[])[0]||null;
+}
+async function gReadFile(id){
+  const r = await gcall('https://www.googleapis.com/drive/v3/files/'+id+'?alt=media');
+  if(!r.ok) throw new Error('Đọc file lỗi '+r.status);
+  return r.json();
+}
+async function gWriteFile(id, data){
+  const body = JSON.stringify(data);
+  if(id){
+    const r = await gcall('https://www.googleapis.com/drive/v3/files/'+id+'?uploadType=media',
+      {method:'PATCH', headers:{'Content-Type':'application/json'}, body});
+    if(!r.ok) throw new Error('Ghi lỗi '+r.status);
+    return id;
+  }
+  const boundary='b'+Date.now();
+  const meta = JSON.stringify({name:GFILE, parents:['appDataFolder']});
+  const payload = '--'+boundary+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+meta
+    +'\r\n--'+boundary+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+body+'\r\n--'+boundary+'--';
+  const r = await gcall('https://www.googleapis.com/drive/v3/files?uploadType=multipart',
+    {method:'POST', headers:{'Content-Type':'multipart/related; boundary='+boundary}, body:payload});
+  if(!r.ok) throw new Error('Tạo file lỗi '+r.status);
+  return (await r.json()).id;
+}
+
+/* Gộp: note nào mới hơn (updated) thì lấy bản đó */
+function mergeData(remote){
+  if(!remote || !remote.notes) return {added:0, updated:0, kept:0};
+  let added=0, updated=0, kept=0;
+  const map = new Map(db.notes.map(n=>[n.id,n]));
+  remote.notes.forEach(rn=>{
+    const ln = map.get(rn.id);
+    if(!ln){ db.notes.push(rn); map.set(rn.id, rn); added++; }
+    else if((rn.updated||0) > (ln.updated||0)){ Object.assign(ln, rn); updated++; }
+    else kept++;
+  });
+  if(remote.templates){
+    db.templates = db.templates||[];
+    const tn = new Map(db.templates.map(t=>[t.nm,t]));
+    remote.templates.forEach(rt=>{ if(!tn.has(rt.nm)){ db.templates.push(rt); tn.set(rt.nm,rt); } });
+  }
+  if(!db.notes.find(n=>n.id===db.active))
+    db.active = (db.notes.find(n=>!n.trashed)||db.notes[0]||{}).id||null;
+  return {added, updated, kept};
+}
+
+async function gSyncNow(silent){
+  if(gBusy) return;
+  if(!gcid()) return setGStatus('Chưa có Client ID — làm theo các bước bên dưới rồi dán vào ô Client ID.','warn');
+  gBusy=true;
+  const wasAuto = document.getElementById('gAuto').checked;
+  setGStatus('Đang đồng bộ...','warn');
+  try{
+    await getToken('consent');
+    const f = await gFindFile();
+    const remote = f ? await gReadFile(f.id) : null;
+    const m = mergeData(remote);
+    const newId = await gWriteFile(f && f.id, db);
+    if(!f) gsaveCfg(Object.assign(gcfg(), {fid:newId}));
+    save0(); renderAll();
+    const when = new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});
+    setGStatus('<span class="gdot on"></span>Đã đồng bộ lúc <b>'+when+'</b>'
+      +' — thêm '+m.added+', cập nhật '+m.updated+', giữ nguyên '+m.kept+' note.');
+    if(!silent) toast('☁️ Đồng bộ xong');
+  }catch(err){
+    setGStatus('Lỗi đồng bộ: '+err.message
+      + (err.message&&/invalid_client|unauthorized_client/i.test(err.message)
+        ? ' → kiểm tra Client ID và danh sách origin cho đúng.' : ''), 'err');
+    if(!silent) toast('❌ Đồng bộ lỗi');
+  }finally{ gBusy=false; document.getElementById('gAuto').checked = wasAuto; }
+}
+async function gPullOnly(){
+  if(gBusy) return;
+  gBusy=true; setGStatus('Đang tải từ Drive...','warn');
+  try{
+    await getToken('');
+    const f = await gFindFile();
+    if(!f){ setGStatus('Drive chưa có dữ liệu. Bấm "Đồng bộ ngay" để đẩy lên lần đầu.','warn'); gBusy=false; return; }
+    const m = mergeData(await gReadFile(f.id));
+    save0(); renderAll();
+    setGStatus('<span class="gdot on"></span>Đã tải: thêm '+m.added+', cập nhật '+m.updated+', giữ '+m.kept+' note.');
+    toast('⬇ Đã tải từ Drive');
+  }catch(err){ setGStatus('Lỗi tải: '+err.message,'err'); }
+  finally{ gBusy=false; }
+}
+
+/* Tự đồng bộ có trễ để không spam */
+function scheduleSync(){
+  if(gcfg().auto === false || !gsigned()) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(()=>gSyncNow(true), 2500);
+}
+/* save() gốc lưu localStorage — bọc lại để tự sync */
+const save0 = save;
+save = function(){ localStorage.setItem(KEY, JSON.stringify(db)); scheduleSync(); };
+
+function setGStatus(html, cls){
+  const el = document.getElementById('gStatus');
+  if(!el) return;
+  el.className = 'gStatus' + (cls?(' '+cls):'');
+  el.innerHTML = html;
+}
+function refreshSyncUI(){
+  const cfg = gcfg();
+  document.getElementById('gClientId').value = cfg.cid||'';
+  document.getElementById('gAuto').checked = cfg.auto !== false;
+  const inBtn = document.getElementById('btnGSignIn'),
+        nowBtn = document.getElementById('btnGSyncNow'),
+        pullBtn = document.getElementById('btnGPull'),
+        outBtn = document.getElementById('btnGSignOut');
+  const setup = document.getElementById('gSetup');
+  if(gsigned()){
+    inBtn.style.display='none'; nowBtn.style.display=''; pullBtn.style.display=''; outBtn.style.display='';
+    setup.style.display='none';
+    setGStatus('<span class="gdot on"></span>Đã đăng nhập Google. Note sẽ tự đồng bộ giữa điện thoại và máy tính.');
+  } else {
+    inBtn.style.display=''; nowBtn.style.display='none'; pullBtn.style.display='none'; outBtn.style.display='none';
+    setup.style.display='';
+    if(cfg.cid) setGStatus('<span class="gdot"></span>Đã lưu Client ID. Bấm "Đăng nhập Google" để bắt đầu.','warn');
+    else setGStatus('Chưa kết nối Google. Làm theo các bước bên dưới (~3 phút) rồi dán Client ID.','warn');
+  }
+}
+document.getElementById('btnSync').onclick = ()=>{
+  document.getElementById('ovSync').style.display='flex';
+  refreshSyncUI();
+};
+document.getElementById('btnCloseSync').onclick = ()=>document.getElementById('ovSync').style.display='none';
+document.getElementById('ovSync').addEventListener('click', e=>{
+  if(e.target.id==='ovSync') e.currentTarget.style.display='none';
+});
+document.getElementById('gClientId').addEventListener('change', e=>{
+  const v = e.target.value.trim();
+  gsaveCfg(Object.assign(gcfg(), {cid:v}));
+  tokenClient=null; gToken=null; gExp=0;
+  toast(v?'💾 Đã lưu Client ID':'Đã xoá Client ID');
+  refreshSyncUI();
+});
+document.getElementById('gAuto').addEventListener('change', e=>{
+  gsaveCfg(Object.assign(gcfg(), {auto:e.target.checked}));
+  toast(e.target.checked?'Tự đồng bộ: BẬT':'Tự đồng bộ: TẮT');
+});
+document.getElementById('btnGSignIn').onclick = async ()=>{
+  if(!gcid()) return toast('Dán Client ID vào ô dưới các bước trước đã');
+  try{ await getToken('consent'); refreshSyncUI(); gSyncNow(true); }
+  catch(e){ /* callback đã hiện lỗi */ }
+};
+document.getElementById('btnGSyncNow').onclick = ()=>gSyncNow(false);
+document.getElementById('btnGPull').onclick = gPullOnly;
+document.getElementById('btnGSignOut').onclick = ()=>{
+  if(gToken && window.google){
+    google.accounts.oauth2.revoke(gToken, ()=>{});
+  }
+  gToken=null; gExp=0;
+  setGStatus('<span class="gdot"></span>Đã đăng xuất. Dữ liệu vẫn còn trên máy này.','warn');
+  toast('Đã đăng xuất Google');
+  refreshSyncUI();
+};
+
+/* Khởi động: nếu đã từng đăng nhập và bật auto thì thử tải im lặng */
+window.addEventListener('load', ()=>{
+  if(gcfg().cid && gcfg().auto !== false){
+    loadGis(()=>{ initTokenClient(); getToken('').then(()=>{ gSyncNow(true); }).catch(()=>{}); });
+  }
+});
 </script>
 </body>
 </html>
