@@ -1,27 +1,24 @@
-// Service Worker — cho phép app chạy OFFLINE và ghim lên màn hình chính
-const CACHE = 'ghichu-note-v2';
-const ASSETS = [
-  './note.html',
-  './manifest.webmanifest',
-  './icon-192.png',
-  './icon-512.png',
-  './icon-maskable-512.png',
-  './apple-touch-icon.png'
+// Service Worker — OFFLINE + ghim lên màn hình chính
+const CACHE = 'ghichu-note-v3';
+
+// App shell: lấy mạng trước, mất mạng mới dùng bản cache
+const SHELL = ['./note.html', './manifest.webmanifest'];
+// File tĩnh ít đổi: cache trước (icon)
+const STATIC = [
+  './icon-192.png', './icon-512.png',
+  './icon-maskable-512.png', './apple-touch-icon.png'
 ];
 
-// Cài đặt: tải trước các file cần thiết.
-// Dùng mỗi file riêng (không addAll) để 1 file lỗi không làm hỏng cả bản cài.
 self.addEventListener('install', e => {
   e.waitUntil(
     caches.open(CACHE).then(c =>
-      Promise.all(ASSETS.map(u =>
+      Promise.all([...SHELL, ...STATIC].map(u =>
         c.add(new Request(u, {cache:'reload'})).catch(()=>{})
       ))
     ).then(() => self.skipWaiting())
   );
 });
 
-// Khi cập nhật bản mới: dọn cache cũ
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
@@ -30,23 +27,41 @@ self.addEventListener('activate', e => {
   );
 });
 
-// Lượt request: cache trước, mạng sau (fallback offline)
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
-  // bỏ qua request khác origin (vd: analytics)
   if (new URL(req.url).origin !== location.origin) return;
 
-  e.respondWith(
-    caches.match(req).then(cached => {
-      const fetched = fetch(req).then(res => {
+  // App shell: NETWORK FIRST — để cập nhật app tới được người dùng
+  if (SHELL.some(u => req.url.endsWith(u.replace('./','')))) {
+    e.respondWith(
+      fetch(req).then(res => {
         if (res && res.status === 200) {
           const clone = res.clone();
           caches.open(CACHE).then(c => c.put(req, clone)).catch(()=>{});
         }
         return res;
-      }).catch(() => cached || caches.match('./note.html'));
-      return cached || fetched;
-    })
+      }).catch(() => caches.match(req).then(r => r || caches.match('./note.html')))
+    );
+    return;
+  }
+
+  // File tĩnh: CACHE FIRST — icon ít đổi, giữ cho nhanh
+  if (STATIC.some(u => req.url.endsWith(u.replace('./','')))) {
+    e.respondWith(
+      caches.match(req).then(r => r || fetch(req).then(res => {
+        if (res && res.status === 200) {
+          const clone = res.clone();
+          caches.open(CACHE).then(c => c.put(req, clone)).catch(()=>{});
+        }
+        return res;
+      }))
+    );
+    return;
+  }
+
+  // Các file khác: cache trước, mạng sau
+  e.respondWith(
+    caches.match(req).then(cached => cached || fetch(req).catch(() => caches.match('./note.html')))
   );
 });
